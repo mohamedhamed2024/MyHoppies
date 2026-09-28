@@ -1,0 +1,13 @@
+# Fails CI on dwl-pilot/fail-ci branches only (Daily Work Loop pilot fixtures).
+name: DWL pilot fail CI
+
+on:
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  dwl-pilot-intentional-fail:
+    if: contains(github.head_ref, 'dwl-pilot/fail-ci')
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Daily Work Loop pilot — intentional failure for blocked-queue tests" && exit 1
