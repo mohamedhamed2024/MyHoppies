@@ -1,5 +1,5 @@
 import { createHobby, listHobbies } from "@/lib/hobbies";
-import { getActiveTimer } from "@/lib/time-entries";
+import { getActiveTimer, getEngagementSummary } from "@/lib/time-entries";
 import { jsonError, readJson } from "@/lib/http";
 
 export const runtime = "nodejs";
@@ -9,6 +9,7 @@ export function GET() {
     return Response.json({
       hobbies: listHobbies(),
       activeTimer: getActiveTimer(),
+      engagement: getEngagementSummary(),
     });
   } catch (error) {
     return jsonError(error);

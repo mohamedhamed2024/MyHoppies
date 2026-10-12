@@ -118,3 +118,41 @@ test("start then stop records duration and blocks a second timer", async () => {
   assert.equal(body.activeTimer, null);
   assert.equal(body.hobbies[0].totalSeconds, entry.durationSeconds);
 });
+
+test("hobbies list includes engagement totals and time entry history", async () => {
+  const hobbies = await import("../app/api/hobbies/route");
+  const entries = await import("../app/api/time-entries/route");
+
+  const created = await hobbies.POST(
+    new Request("http://localhost/api/hobbies", {
+      method: "POST",
+      body: JSON.stringify({ name: "Sketching" }),
+    }),
+  );
+  const hobby = await created.json();
+
+  const logged = await entries.POST(
+    new Request("http://localhost/api/time-entries", {
+      method: "POST",
+      body: JSON.stringify({
+        hobbyId: hobby.id,
+        date: "2026-10-12",
+        durationMinutes: 15,
+      }),
+    }),
+  );
+  assert.equal(logged.status, 201);
+
+  const listed = await hobbies.GET();
+  const body = await listed.json();
+  assert.equal(body.engagement.totalSeconds, 900);
+  assert.equal(body.engagement.todaySeconds, 900);
+
+  const history = await entries.GET(
+    new Request(`http://localhost/api/time-entries?hobbyId=${hobby.id}`),
+  );
+  assert.equal(history.status, 200);
+  const historyBody = await history.json();
+  assert.equal(historyBody.entries.length, 1);
+  assert.equal(historyBody.entries[0].hobbyId, hobby.id);
+});
