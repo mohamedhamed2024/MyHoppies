@@ -21,6 +21,20 @@ type Notice = {
   text: string;
 };
 
+type EngagementSummary = {
+  totalSeconds: number;
+  todaySeconds: number;
+};
+
+type TimeEntry = {
+  id: number;
+  hobbyId: number;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  source: "manual" | "timer";
+};
+
 function formatDuration(totalSeconds: number) {
   const seconds = Math.max(0, totalSeconds);
   const hours = Math.floor(seconds / 3600);
@@ -33,6 +47,12 @@ function formatDuration(totalSeconds: number) {
     return `${minutes}m ${String(remain).padStart(2, "0")}s`;
   }
   return `${remain}s`;
+}
+
+function formatEntryDate(startedAt: string) {
+  const date = startedAt.slice(0, 10);
+  const [year, month, day] = date.split("-");
+  return `${month}/${day}/${year}`;
 }
 
 function todayInputValue() {
@@ -56,7 +76,19 @@ export function HobbyTracker() {
   const [minutes, setMinutes] = useState("30");
   const [notice, setNotice] = useState<Notice | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [engagement, setEngagement] = useState<EngagementSummary>({ totalSeconds: 0, todaySeconds: 0 });
+  const [recentEntries, setRecentEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(true);
+
+  async function loadRecentEntries(hobbyId: number) {
+    const response = await fetch(`/api/time-entries?hobbyId=${hobbyId}`);
+    if (!response.ok) {
+      setRecentEntries([]);
+      return;
+    }
+    const body = (await response.json()) as { entries: TimeEntry[] };
+    setRecentEntries(body.entries.slice(0, 5));
+  }
 
   async function refresh(nextSelectedId?: number) {
     const response = await fetch("/api/hobbies");
@@ -64,9 +96,14 @@ export function HobbyTracker() {
       setNotice({ tone: "warn", text: await readError(response) });
       return;
     }
-    const body = (await response.json()) as { hobbies: Hobby[]; activeTimer: ActiveTimer | null };
+    const body = (await response.json()) as {
+      hobbies: Hobby[];
+      activeTimer: ActiveTimer | null;
+      engagement: EngagementSummary;
+    };
     setHobbies(body.hobbies);
     setActiveTimer(body.activeTimer);
+    setEngagement(body.engagement ?? { totalSeconds: 0, todaySeconds: 0 });
     setSelectedId((current) => {
       if (nextSelectedId) return nextSelectedId;
       if (current && body.hobbies.some((hobby) => hobby.id === current)) return current;
@@ -77,6 +114,14 @@ export function HobbyTracker() {
   useEffect(() => {
     refresh().finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setRecentEntries([]);
+      return;
+    }
+    loadRecentEntries(selectedId);
+  }, [selectedId]);
 
   useEffect(() => {
     if (!activeTimer) return;
@@ -166,6 +211,17 @@ export function HobbyTracker() {
         </p>
       ) : null}
 
+      <section className="engagement" aria-label="Engagement summary">
+        <div className="engagement-card">
+          <span className="engagement-label">Today</span>
+          <strong className="engagement-value">{formatDuration(engagement.todaySeconds)}</strong>
+        </div>
+        <div className="engagement-card">
+          <span className="engagement-label">All hobbies</span>
+          <strong className="engagement-value">{formatDuration(engagement.totalSeconds)}</strong>
+        </div>
+      </section>
+
       <div className="layout">
         <section className="panel">
           <h2>Hobbies</h2>
@@ -253,6 +309,23 @@ export function HobbyTracker() {
                   <button className="secondary" type="button" onClick={onStart}>
                     Start timer
                   </button>
+                )}
+              </div>
+
+              <div className="recent">
+                <h3>Recent sessions</h3>
+                {recentEntries.length === 0 ? (
+                  <p className="empty">No time logged yet for this hobby.</p>
+                ) : (
+                  <ul className="entry-list">
+                    {recentEntries.map((entry) => (
+                      <li key={entry.id}>
+                        <span>{formatEntryDate(entry.startedAt)}</span>
+                        <span>{formatDuration(entry.durationSeconds ?? 0)}</span>
+                        <span className="source">{entry.source === "timer" ? "Timer" : "Manual"}</span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
             </>

@@ -146,6 +146,36 @@ export function startTimer(hobbyId: unknown): ActiveTimer {
   };
 }
 
+export type EngagementSummary = {
+  totalSeconds: number;
+  todaySeconds: number;
+};
+
+export function getEngagementSummary(): EngagementSummary {
+  const row = getDb()
+    .prepare(
+      `SELECT
+         COALESCE(SUM(CASE WHEN duration_seconds IS NOT NULL THEN duration_seconds ELSE 0 END), 0) AS total_seconds,
+         COALESCE(
+           SUM(
+             CASE
+               WHEN duration_seconds IS NOT NULL AND date(started_at) = date('now')
+               THEN duration_seconds
+               ELSE 0
+             END
+           ),
+           0
+         ) AS today_seconds
+       FROM time_entries`,
+    )
+    .get() as { total_seconds: number; today_seconds: number };
+
+  return {
+    totalSeconds: row.total_seconds,
+    todaySeconds: row.today_seconds,
+  };
+}
+
 export function stopTimer(): TimeEntry {
   const open = getActiveTimer();
   if (!open) {
